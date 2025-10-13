@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 )
 
 type Entry struct {
@@ -12,13 +13,65 @@ type Entry struct {
 	Squirrel bool     `json:"squirrel"`
 }
 
-func phi(n11, n00, n10, n01 float64) float64 {
+type Counts struct {
+	n00 uint
+	n01 uint
+	n10 uint
+	n11 uint
+}
+
+func phi(counts Counts) float64 {
+
+	n00 := float64(counts.n00)
+	n01 := float64(counts.n01)
+	n10 := float64(counts.n10)
+	n11 := float64(counts.n11)
+
 	num := (n11 * n00) - (n10 * n01)
-	den := math.Sqrt((n11 + n10) * (n00 + n01) * (n11 + n01) * (n10 + n00))
+	nx1 := n11 + n10
+	nx0 := n00 + n01
+	ny1 := n11 + n01
+	ny0 := n10 + n00
+
+	den := math.Sqrt(nx0 * nx1 * ny0 * ny1)
 	if den == 0 {
 		return 0
 	}
+
 	return num / den
+}
+
+func getCounts(entries []Entry, event string) Counts {
+
+	var n00, n01, n10, n11 uint
+
+	for _, entry := range entries {
+
+		if slices.Contains(entry.Events, event) { // event true
+			if entry.Squirrel { //event true & squirrel true
+				n11++
+			} else { //event true && sqirrel false
+				n10++
+			}
+		} else { //event false
+			if entry.Squirrel { //event false & squirrel true
+				n01++
+			} else { //both false
+				n00++
+			}
+		}
+
+	}
+
+	counts := Counts{
+		n00: n00,
+		n01: n01,
+		n10: n10,
+		n11: n11,
+	}
+
+	return counts
+
 }
 
 func main() {
@@ -35,56 +88,38 @@ func main() {
 		return
 	}
 
-	eventSet := make(map[string]bool)
+	correlation := make(map[string]float64)
 
-	for _, e := range journal {
-		for _, ev := range e.Events {
-			eventSet[ev] = true
+	for _, entries := range journal {
+		for _, event := range entries.Events {
+			counts := getCounts(journal, event)
+			corr := phi(counts)
+			correlation[event] = corr
 		}
 	}
+
+	//fmt.Println(correlation)
 
 	var bestEvent string
 	var bestCorr float64
-	var worseCorr float64
 	var worseEvent string
+	var worseCorr float64
 
-	for event := range eventSet {
-		var n11, n00, n10, n01 float64
+	for key, value := range correlation {
 
-		for _, entry := range journal {
-			hasEvent := false
-			for _, ev := range entry.Events {
-				if ev == event {
-					hasEvent = true
-					break
-				}
-			}
-
-			if hasEvent && entry.Squirrel {
-				n11++
-			} else if hasEvent && !entry.Squirrel {
-				n10++
-			} else if !hasEvent && entry.Squirrel {
-				n01++
-			} else {
-				n00++
-			}
-		}
-		corr := phi(n11, n00, n10, n01)
-		fmt.Printf("%s ----> %.4f \n", event, corr)
-
-		if corr > bestCorr {
-			bestCorr = corr
-			bestEvent = event
+		if value > bestCorr {
+			bestCorr = value
+			bestEvent = key
 		}
 
-		if corr < worseCorr {
-			worseCorr = corr
-			worseEvent = event
+		if value < worseCorr {
+			worseCorr = value
+			worseEvent = key
 		}
+
 	}
 
-	fmt.Printf("Most correlated event: %s (ϕ = %.4f)\n", bestEvent, bestCorr)
-	fmt.Printf("Least correlated event: %s (ϕ = %.4f)\n", worseEvent, worseCorr)
+	fmt.Println("Most correlated: ", bestCorr, "for event: ", bestEvent)
+	fmt.Println("Least correlated: ", worseCorr, "for event: ", worseEvent)
 
 }
