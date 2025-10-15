@@ -20,6 +20,13 @@ type Counts struct {
 	n11 uint
 }
 
+type BestWorse struct {
+	bestEvent  string
+	bestCorr   float64
+	worseEvent string
+	worseCorr  float64
+}
+
 func phi(counts Counts) float64 {
 
 	n00 := float64(counts.n00)
@@ -74,6 +81,49 @@ func getCounts(entries []Entry, event string) Counts {
 
 }
 
+func getCorrelations(journal []Entry) map[string]float64 {
+	correlations := make(map[string]float64)
+
+	for _, entries := range journal {
+		for _, event := range entries.Events {
+			counts := getCounts(journal, event)
+			corr := phi(counts)
+			correlations[event] = corr
+		}
+	}
+
+	return correlations
+}
+
+func getBestWorseCorrelation(correlations map[string]float64) BestWorse {
+	var bestEvent string
+	var bestCorr float64
+	var worseEvent string
+	var worseCorr float64
+
+	for key, value := range correlations {
+
+		if value > bestCorr {
+			bestCorr = value
+			bestEvent = key
+		}
+
+		if value < worseCorr {
+			worseCorr = value
+			worseEvent = key
+		}
+
+	}
+
+	result := BestWorse{
+		bestEvent:  bestEvent,
+		bestCorr:   bestCorr,
+		worseEvent: worseEvent,
+		worseCorr:  worseCorr,
+	}
+	return result
+}
+
 func main() {
 	data, err := os.ReadFile("journal.json")
 	if err != nil {
@@ -88,38 +138,11 @@ func main() {
 		return
 	}
 
-	correlation := make(map[string]float64)
+	correlations := getCorrelations(journal)
 
-	for _, entries := range journal {
-		for _, event := range entries.Events {
-			counts := getCounts(journal, event)
-			corr := phi(counts)
-			correlation[event] = corr
-		}
-	}
+	wb := getBestWorseCorrelation(correlations)
 
-	//fmt.Println(correlation)
-
-	var bestEvent string
-	var bestCorr float64
-	var worseEvent string
-	var worseCorr float64
-
-	for key, value := range correlation {
-
-		if value > bestCorr {
-			bestCorr = value
-			bestEvent = key
-		}
-
-		if value < worseCorr {
-			worseCorr = value
-			worseEvent = key
-		}
-
-	}
-
-	fmt.Println("Most correlated: ", bestCorr, "for event: ", bestEvent)
-	fmt.Println("Least correlated: ", worseCorr, "for event: ", worseEvent)
+	fmt.Println("Most correlated: ", wb.bestCorr, "for event: ", wb.bestEvent)
+	fmt.Println("Least correlated: ", wb.worseCorr, "for event: ", wb.worseEvent)
 
 }
