@@ -27,6 +27,22 @@ type BestWorse struct {
 	worseCorr  float64
 }
 
+func preprocess(journalEntries []Entry) []Entry {
+	var journal []Entry
+	for _, entry := range journalEntries {
+		hasPeanut := slices.Contains(entry.Events, "peanuts")
+		notBrushedTeeth := !slices.Contains(entry.Events, "brushed teeth")
+
+		if hasPeanut && notBrushedTeeth {
+			entry.Events = append(entry.Events, "dirty teeth")
+			journal = append(journal, entry)
+		} else {
+			journal = append(journal, entry)
+		}
+	}
+	return journal
+}
+
 func phi(counts Counts) float64 {
 
 	n00 := float64(counts.n00)
@@ -137,6 +153,8 @@ func main() {
 		fmt.Println("Error parsing JSON:", err)
 		return
 	}
+
+	journal = preprocess(journal)
 
 	correlations := getCorrelations(journal)
 
